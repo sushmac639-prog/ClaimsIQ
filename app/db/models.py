@@ -33,7 +33,13 @@ class User(TimestampMixin, Base):
     full_name: Mapped[str] = mapped_column(String(150), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="user_role"), nullable=False)
+    role: Mapped[UserRole] = mapped_column(
+        Enum(
+            UserRole,
+            name="user_role",
+            values_callable=lambda enum_cls: [item.value for item in enum_cls],
+        ),
+    nullable=False,)
     region: Mapped[str | None] = mapped_column(String(100))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     assigned_claims: Mapped[list["Claim"]] = relationship(back_populates="assigned_adjuster", foreign_keys="Claim.assigned_user_id")
@@ -49,7 +55,7 @@ class Policy(TimestampMixin, Base):
     region: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
     effective_date: Mapped[date] = mapped_column(Date, nullable=False)
     expiry_date: Mapped[date] = mapped_column(Date, nullable=False)
-    status: Mapped[PolicyStatus] = mapped_column(Enum(PolicyStatus, name="policy_status"), default=PolicyStatus.ACTIVE, nullable=False)
+    status: Mapped[PolicyStatus] = mapped_column(Enum(PolicyStatus, name="policy_status",values_callable=lambda enum_cls: [item.value for item in enum_cls]))
     claims: Mapped[list["Claim"]] = relationship(back_populates="policy")
 
 class Claim(TimestampMixin, Base):
@@ -63,7 +69,7 @@ class Claim(TimestampMixin, Base):
     claim_type: Mapped[str] = mapped_column(String(80), index=True, nullable=False)
     claim_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     region: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
-    status: Mapped[ClaimStatus] = mapped_column(Enum(ClaimStatus, name="claim_status"), default=ClaimStatus.SUBMITTED, nullable=False)
+    status: Mapped[ClaimStatus] = mapped_column(Enum(ClaimStatus, name="claim_status", values_callable=lambda enum_cls: [item.value for item in enum_cls]))
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     policy: Mapped["Policy"] = relationship(back_populates="claims")
