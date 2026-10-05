@@ -1,0 +1,10 @@
+.git
+.github
+.gitignore
+.env
+.venv
+__pycache__
+.pytest_cache
+*.pyc
+data/chroma/*
+data/documents/*
