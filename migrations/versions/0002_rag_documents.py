@@ -8,13 +8,13 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade() -> None:
-    bind = op.get_bind()
+def upgrade() -> None:    
     document_status = sa.Enum(
-        "processing", "active", "inactive", "failed", name="document_status"
+        "processing", "active", "inactive", "failed", name="document_status", create_type=False,
     )
+    bind = op.get_bind()
     document_status.create(bind, checkfirst=True)
-
+    
     op.create_table(
         "documents",
         sa.Column("id", sa.Integer(), primary_key=True),

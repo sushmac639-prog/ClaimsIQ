@@ -28,4 +28,4 @@ def query_policy_knowledge(
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=503, detail="AI retrieval service is unavailable") from exc
+        raise HTTPException(status_code=503, detail=f"debug error : {str(exc)}") from exc
