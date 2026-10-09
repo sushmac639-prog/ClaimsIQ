@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claimiq-config
+data:
+  APP_NAME: "ClaimIQ"
+  APP_ENV: "production"
+  DEBUG: "false"
+  AI_PROVIDER: "azure_foundry"
+  AZURE_OPENAI_BASE_URL: "https://REPLACE_FOUNDRY_RESOURCE.services.ai.azure.com/openai/v1/"
+  AZURE_OPENAI_CHAT_MODEL: "gpt-5.6-luna"
+  AZURE_OPENAI_EMBEDDING_MODEL: "text-embedding-3-small"
+  LLM_TIMEOUT_SECONDS: "60"
+  RAG_TOP_K: "5"
+  RAG_MIN_SIMILARITY: "0.55"
+  RAG_MAX_CONTEXT_CHARS: "12000"
+  RAG_CHUNK_SIZE: "1200"
+  RAG_CHUNK_OVERLAP: "200"
+  RAG_EMBED_BATCH_SIZE: "32"
+  CHROMA_PERSIST_DIRECTORY: "/app/data/chroma"
+  CHROMA_COLLECTION: "claimiq_policy_chunks"
+  DOCUMENT_STORAGE_DIRECTORY: "/app/data/documents"
+  MAX_DOCUMENT_SIZE_MB: "20"

@@ -1,0 +1,37 @@
+name: ClaimIQ CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Compile Python
+        run: python -m compileall -q app migrations scripts tests
+
+      - name: Run unit tests
+        env:
+          DATABASE_URL: sqlite:///./ci.db
+          JWT_SECRET_KEY: ci-only-secret-change-me
+          AI_PROVIDER: openai
+          OPENAI_API_KEY: test-key
+        run: pytest -q
+
+      - name: Build Docker image
+        run: docker build -t claimiq:${{ github.sha }} .
