@@ -46,8 +46,7 @@ class OpenAIClient:
             **common,
         )
         self.chat = ChatOpenAI(
-            model=chat_model,
-            temperature=0.1,
+            model=chat_model,           
             timeout=settings.llm_timeout_seconds,
             max_retries=2,
             use_responses_api=True,

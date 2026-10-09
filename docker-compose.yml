@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: claimiq
       POSTGRES_USER: claimiq
-      POSTGRES_PASSWORD: claimiq_password
+      POSTGRES_PASSWORD: 123456
     ports:
       - "5432:5432"
     volumes:
@@ -20,7 +20,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+psycopg://claimiq:claimiq_password@db:5432/claimiq
+      DATABASE_URL: postgresql+psycopg://claimiq:123456@db:5432/claimiq
     ports:
       - "8000:8000"
     depends_on:

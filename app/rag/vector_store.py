@@ -44,7 +44,21 @@ class VectorStore:
             self.store.delete(ids=ids)
 
     def search(self, query: str, top_k: int, where: dict[str, Any] | None = None) -> list[RetrievedChunk]:
+        print(f"Chroma query: {query}")
+        print(f"Chroma filter: {where}")
+        print(f"Chroma collection count: {self.store._collection.count()}")
+        collection = self.store._collection
+
+        print("Chroma collection count:", collection.count())
+
+        print(
+            "Chroma stored records:",
+            collection.get(
+                include=["metadatas", "documents"]
+            )
+        )
         results = self.store.similarity_search_with_score(query, k=top_k, filter=where)
+
         items: list[RetrievedChunk] = []
         for document, distance in results:
             metadata = document.metadata

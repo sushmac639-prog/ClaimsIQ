@@ -128,6 +128,7 @@ def answer_question(
         ) 
         answer = str(response.content).strip() 
     except Exception as exc: 
+        print(f"AI chat service is unavailable - {str(exc)}")
         raise RuntimeError("AI chat service is unavailable") from exc 
  
     log = ChatQueryLog( 

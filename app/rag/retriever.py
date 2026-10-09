@@ -17,14 +17,29 @@ def retrieve_chunks(
     requested = max(1, min(requested, 10))
     candidate_count = min(max(requested * 4, requested), 40)
 
-    where = {"status": "active"}
+    conditions = [
+        {"status": {"$eq": "active"}}
+    ]
+
     if policy_id is not None:
-        where["policy_id"] = policy_id
+        conditions.append({"policy_id": {"$eq": policy_id}})
+
+    where = {"$and": conditions}
 
     candidates = get_vector_store().search(question, candidate_count, where)
+    
     if not candidates:
         return []
+    
+    print("Retrieved candidates:", len(candidates))
 
+    for item in candidates:
+        print(
+            f"document_id={item.document_id}, "
+            f"policy_id={item.policy_id}, "
+            f"similarity={item.similarity}"
+        )
+        
     document_ids = [item.document_id for item in candidates]
     documents = list(
         db.scalars(

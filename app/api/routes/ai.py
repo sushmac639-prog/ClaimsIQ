@@ -24,6 +24,7 @@ def query_policy_knowledge(
             raise HTTPException(status_code=403, detail="You cannot query documents for this policy region")
 
     try:
+        print(f"Policy Id - {body.policy_id}")
         return answer_question(db, user, body.question.strip(), body.top_k, body.policy_id)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
