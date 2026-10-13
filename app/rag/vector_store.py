@@ -29,6 +29,7 @@ class VectorStore:
             collection_name=settings.chroma_collection,
             persist_directory=str(settings.chroma_persist_directory),
             embedding_function=get_openai_client().embeddings,
+            collection_metadata={"hnsw:space":"cosine"},
         )
 
     def add_chunks(self, ids: list[str], texts: list[str], metadatas: list[dict[str, Any]]) -> None:
@@ -57,7 +58,7 @@ class VectorStore:
                 include=["metadatas", "documents"]
             )
         )
-        results = self.store.similarity_search_with_score(query, k=top_k, filter=where)
+        results = self.store.similarity_search_with_relevance_scores(query, k=top_k, filter=where)
 
         items: list[RetrievedChunk] = []
         for document, distance in results:
