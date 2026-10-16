@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: claimiq-api
+  labels:
+    app: claimiq-api
+
+spec:
+  type: LoadBalancer
+
+  selector:
+    app: claimiq-api
+
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: http
