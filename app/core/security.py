@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from uuid import uuid4
 import jwt
 from jwt import InvalidTokenError
 from pwdlib import PasswordHash
@@ -15,7 +16,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_token(subject: str, token_type: str, expires_delta: timedelta) -> str:
     now = datetime.now(timezone.utc)
-    payload: dict[str, Any] = {"sub": subject, "type": token_type, "iat": now, "exp": now + expires_delta}
+    payload: dict[str, Any] = {"sub": subject, "type": token_type, "jti": str(uuid4()), "iat": now, "exp": now + expires_delta}
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 def create_access_token(subject: str) -> str:
