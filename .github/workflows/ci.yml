@@ -2,9 +2,17 @@ name: ClaimIQ CI
 
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
+      - feature/Devopstest
+      - feature/Devmain
+      - umesh/latest-feature-branch
+
   pull_request:
-    branches: [main]
+    branches:
+      - main
+
+  workflow_dispatch:
 
 jobs:
   test-and-build:
