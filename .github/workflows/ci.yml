@@ -56,7 +56,7 @@ jobs:
           AZURE_OPENAI_EMBEDDING_MODEL: ${{ vars.CI_AZURE_OPENAI_EMBEDDING_MODEL }}
 
         run: |
-          pytest -q
+          pytest -v --tb=short
 
       # Validate that the Docker image builds successfully
       - name: Build Docker image
