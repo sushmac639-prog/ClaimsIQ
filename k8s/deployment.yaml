@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: claimiq-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: claimiq-api
+  template:
+    metadata:
+      labels:
+        app: claimiq-api
+    spec:
+      containers:
+        - name: claimiq-api
+          image: REPLACE_ACR_LOGIN_SERVER/claimiq-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: claimiq-config
+            - secretRef:
+                name: claimiq-secrets
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: claimiq-secrets
+                  key: DATABASE_URL
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: claimiq-secrets
+                  key: JWT_SECRET_KEY
+            - name: AZURE_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: claimiq-secrets
+                  key: AZURE_OPENAI_API_KEY
+          command: ["sh", "-c"]
+          args:
+            - "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 40
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          volumeMounts:
+            - name: chroma-data
+              mountPath: /app/data/chroma
+            - name: documents
+              mountPath: /app/data/documents
+      volumes:
+        - name: chroma-data
+          persistentVolumeClaim:
+            claimName: claimiq-data
+        - name: documents
+          persistentVolumeClaim:
+            claimName: claimiq-documents
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: claimiq-api
+spec:
+  selector:
+    app: claimiq-api
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
