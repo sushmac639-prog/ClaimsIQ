@@ -4,24 +4,31 @@ services:
     environment:
       POSTGRES_DB: claimiq
       POSTGRES_USER: claimiq
-      POSTGRES_PASSWORD: claimiq_password
-    ports: ["5433:5432"]
-    volumes: ["postgres_data:/var/lib/postgresql/data"]
+      POSTGRES_PASSWORD: 123456
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U claimiq -d claimiq"]
       interval: 5s
       timeout: 5s
       retries: 10
+
   api:
     build: .
-    env_file: [.env]
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql+psycopg://claimiq:claimiq_password@db:5432/claimiq
-    ports: ["8000:8000"]
+      DATABASE_URL: postgresql+psycopg://claimiq:123456@db:5432/claimiq
+    ports:
+      - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
-    volumes: [".:/app"]
+    volumes:
+      - .:/app
+
 volumes:
   postgres_data:

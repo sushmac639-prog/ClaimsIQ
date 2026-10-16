@@ -1,0 +1,82 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+variables:
+  pythonVersion: '3.11'
+  imageName: 'claimiq-api'
+  # Create this variable group in Azure DevOps and mark secrets appropriately.
+  - group: ClaimIQ-Production
+
+stages:
+  - stage: Test
+    displayName: Test
+    jobs:
+      - job: UnitTests
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(pythonVersion)'
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt
+            displayName: Install dependencies
+
+          - script: python -m compileall -q app migrations scripts tests
+            displayName: Compile Python
+
+          - script: pytest -q
+            displayName: Run tests
+            env:
+              DATABASE_URL: sqlite:///./azure-pipeline.db
+              JWT_SECRET_KEY: $(JWT_SECRET_KEY)
+              AI_PROVIDER: openai
+              OPENAI_API_KEY: test-key
+
+  - stage: BuildAndDeploy
+    displayName: Build and deploy to AKS
+    dependsOn: Test
+    condition: succeeded()
+    jobs:
+      - job: Deploy
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: Build, push and deploy
+            inputs:
+              azureSubscription: 'ClaimIQ-Azure-ServiceConnection'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -e
+                az acr login --name "$(ACR_NAME)"
+                docker build -t "$(ACR_LOGIN_SERVER)/$(imageName):$(Build.BuildId)" .
+                docker push "$(ACR_LOGIN_SERVER)/$(imageName):$(Build.BuildId)"
+
+                az aks get-credentials \
+                  --resource-group "$(AKS_RESOURCE_GROUP)" \
+                  --name "$(AKS_CLUSTER_NAME)" \
+                  --overwrite-existing
+
+                kubectl create secret generic claimiq-secrets \
+                  --from-literal=DATABASE_URL="$(DATABASE_URL)" \
+                  --from-literal=JWT_SECRET_KEY="$(JWT_SECRET_KEY)" \
+                  --from-literal=AZURE_OPENAI_API_KEY="$(AZURE_OPENAI_API_KEY)" \
+                  --dry-run=client -o yaml | kubectl apply -f -
+
+                kubectl apply -f k8s/
+                kubectl set image deployment/claimiq-api \
+                  claimiq-api="$(ACR_LOGIN_SERVER)/$(imageName):$(Build.BuildId)"
+                kubectl rollout status deployment/claimiq-api --timeout=180s

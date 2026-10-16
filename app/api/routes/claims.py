@@ -27,23 +27,77 @@ def create_claim(body: ClaimCreate, db: Session = Depends(get_db), actor: User =
     db.add(ClaimStatusHistory(claim_id=claim.id, old_status=None, new_status=ClaimStatus.SUBMITTED, changed_by=actor.id))
     db.add(AuditLog(user_id=actor.id, action="CLAIM_CREATED", entity_type="Claim", entity_id=str(claim.id)))
     db.commit(); db.refresh(claim); return claim
-@router.get("", response_model=list[ClaimRead])
-def list_claims(claim_status: ClaimStatus | None = None, region: str | None = None, skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=200), db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
-    stmt = visible_claims_stmt(actor).order_by(Claim.id)
-    if claim_status: stmt = stmt.where(Claim.status == claim_status)
-    if region: stmt = stmt.where(Claim.region == region)
-    return list(db.scalars(stmt.offset(skip).limit(limit)).all())
+
+@router.get("", response_model=list[ClaimRead]) 
+def list_claims( 
+    claim_status: ClaimStatus | None = None, 
+    claim_number: str | None = Query(default=None, min_length=1, max_length=80), 
+    claimant: str | None = Query(default=None, min_length=1, max_length=150), 
+    policy_number: str | None = Query(default=None, min_length=1, max_length=80), 
+    region: str | None = Query(default=None, max_length=100), 
+    skip: int = Query(0, ge=0), 
+    limit: int = Query(100, ge=1, le=200), 
+    db: Session = Depends(get_db), 
+    actor: User = Depends(get_current_user), 
+): 
+    stmt = visible_claims_stmt(actor).order_by(Claim.id) 
+ 
+    if claim_status: 
+        stmt = stmt.where(Claim.status == claim_status) 
+    if claim_number: 
+        stmt = stmt.where(Claim.claim_number.ilike(f"%{claim_number.strip()}%")) 
+    if claimant: 
+        stmt = stmt.where(Claim.claimant_name.ilike(f"%{claimant.strip()}%")) 
+    if policy_number: 
+        stmt = stmt.join(Claim.policy).where( 
+            Policy.policy_number.ilike(f"%{policy_number.strip()}%") 
+        ) 
+    if region: 
+        stmt = stmt.where(Claim.region == region.strip()) 
+ 
+    return list(db.scalars(stmt.offset(skip).limit(limit)).all()) 
+
+
 @router.get("/{claim_id}", response_model=ClaimRead)
 def get_claim(claim_id: int, db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
     claim = db.scalar(visible_claims_stmt(actor).where(Claim.id == claim_id))
     if claim is None: raise HTTPException(status_code=404, detail="Claim not found")
     return claim
+
 @router.patch("/{claim_id}", response_model=ClaimRead)
 def update_claim(claim_id: int, body: ClaimUpdate, db: Session = Depends(get_db), actor: User = Depends(adjuster_or_manager)):
-    claim = db.scalar(visible_claims_stmt(actor).where(Claim.id == claim_id))
-    if claim is None: raise HTTPException(status_code=404, detail="Claim not found")
-    for field, value in body.model_dump(exclude_unset=True).items(): setattr(claim, field, value)
-    db.add(AuditLog(user_id=actor.id, action="CLAIM_UPDATED", entity_type="Claim", entity_id=str(claim.id))); db.commit(); db.refresh(claim); return claim
+    claim = db.scalar(visible_claims_stmt(actor).where(Claim.id == claim_id)) 
+    if claim is None: 
+        raise HTTPException(status_code=404, detail="Claim not found") 
+ 
+    values = body.model_dump(exclude_unset=True) 
+    if "assigned_user_id" in values and values["assigned_user_id"] is not None: 
+        assignee = db.get(User, values["assigned_user_id"]) 
+        if ( 
+            assignee is None 
+            or assignee.role != UserRole.CLAIMS_ADJUSTER 
+            or not assignee.is_active 
+        ): 
+            raise HTTPException( 
+                status_code=422, 
+                detail="Assigned user must be an active claims adjuster", 
+            ) 
+ 
+    for field, value in values.items(): 
+        setattr(claim, field, value) 
+ 
+    db.add( 
+        AuditLog( 
+            user_id=actor.id, 
+            action="CLAIM_UPDATED", 
+            entity_type="Claim", 
+            entity_id=str(claim.id), 
+        ) 
+    ) 
+    db.commit() 
+    db.refresh(claim) 
+    return claim
+
 @router.patch("/{claim_id}/status", response_model=ClaimRead)
 def update_claim_status(claim_id: int, body: ClaimStatusUpdate, db: Session = Depends(get_db), actor: User = Depends(adjuster_or_manager)):
     claim = db.scalar(visible_claims_stmt(actor).where(Claim.id == claim_id))
@@ -54,6 +108,7 @@ def update_claim_status(claim_id: int, body: ClaimStatusUpdate, db: Session = De
     if body.new_status == ClaimStatus.CLOSED: claim.closed_at = datetime.now(timezone.utc)
     db.add(ClaimStatusHistory(claim_id=claim.id, old_status=old_status, new_status=body.new_status, changed_by=actor.id, justification=body.justification))
     db.add(AuditLog(user_id=actor.id, action="CLAIM_STATUS_CHANGED", entity_type="Claim", entity_id=str(claim.id), details=f"{old_status.value} -> {body.new_status.value}")); db.commit(); db.refresh(claim); return claim
+
 @router.post("/{claim_id}/notes", response_model=NoteRead, status_code=status.HTTP_201_CREATED)
 def add_note(claim_id: int, body: NoteCreate, db: Session = Depends(get_db), actor: User = Depends(adjuster_or_manager)):
     claim = db.scalar(visible_claims_stmt(actor).where(Claim.id == claim_id))
