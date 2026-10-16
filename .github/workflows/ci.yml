@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/Devopstest
+      - umesh/latest-feature-branch
 
   pull_request:
     branches:
