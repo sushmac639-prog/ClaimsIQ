@@ -2,7 +2,9 @@ name: ClaimIQ CI
 
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
+      - umesh/latest-feature-branch
   pull_request:
     branches: [main]
 
