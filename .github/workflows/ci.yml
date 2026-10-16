@@ -5,7 +5,6 @@ on:
     branches:
       - main
       - feature/Devopstest
-      - feature/Devmain
       - umesh/latest-feature-branch
 
   pull_request:
@@ -16,30 +15,52 @@ on:
 
 jobs:
   test-and-build:
+    name: Test and Build
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      # Download the selected branch source code
+      - name: Checkout source code
         uses: actions/checkout@v4
 
+      # Configure Python on the GitHub runner
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
+          cache-dependency-path: requirements.txt
 
+      # Install Python project dependencies
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
+      # Validate Python syntax
       - name: Compile Python
-        run: python -m compileall -q app migrations scripts tests
+        run: |
+          python -m compileall -q app migrations scripts tests
 
+      # Run ClaimIQ unit tests
       - name: Run unit tests
         env:
-          DATABASE_URL: sqlite:///./ci.db
-          JWT_SECRET_KEY: ci-only-secret-change-me
-          AI_PROVIDER: openai
-          OPENAI_API_KEY: test-key
-        run: pytest -q
+          DATABASE_URL: ${{ vars.CI_DATABASE_URL }}
+          JWT_SECRET_KEY: ${{ secrets.CI_JWT_SECRET_KEY }}
 
+          AI_PROVIDER: ${{ vars.CI_AI_PROVIDER }}
+
+          AZURE_OPENAI_API_KEY: ${{ secrets.CI_AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_BASE_URL: ${{ vars.CI_AZURE_OPENAI_BASE_URL }}
+          AZURE_OPENAI_CHAT_MODEL: ${{ vars.CI_AZURE_OPENAI_CHAT_MODEL }}
+          AZURE_OPENAI_EMBEDDING_MODEL: ${{ vars.CI_AZURE_OPENAI_EMBEDDING_MODEL }}
+
+        run: |
+          pytest -q
+
+      # Validate that the Docker image builds successfully
       - name: Build Docker image
-        run: docker build -t claimiq:${{ github.sha }} .
+        run: |
+          docker build \
+            --tag claimiq:${{ github.sha }} \
+            .
