@@ -33,3 +33,5 @@ def downgrade():
     op.drop_index("ix_audit_logs_action", table_name="audit_logs"); op.drop_table("audit_logs"); op.drop_table("claim_status_history"); op.drop_table("claim_notes"); op.drop_index("ix_claims_status_region", table_name="claims"); op.drop_index("ix_claims_region", table_name="claims"); op.drop_index("ix_claims_claim_type", table_name="claims"); op.drop_index("ix_claims_assigned_user_id", table_name="claims"); op.drop_index("ix_claims_claim_number", table_name="claims"); op.drop_table("claims"); op.drop_index("ix_policies_region", table_name="policies"); op.drop_index("ix_policies_policy_number", table_name="policies"); op.drop_table("policies"); op.drop_index("ix_users_email", table_name="users"); op.drop_table("users")
     for name in ("history_new_status","history_old_status","claim_status","policy_status","user_role"):
         sa.Enum(name=name).drop(op.get_bind(), checkfirst=True)
+
+

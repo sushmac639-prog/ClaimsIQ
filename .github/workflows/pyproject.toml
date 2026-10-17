@@ -1,0 +1,17 @@
+[tool.isort]
+profile = "black"
+line_length = 88
+known_first_party = [
+    "app",
+    "scripts",
+]
+skip = [
+    ".git",
+    ".venv",
+    "venv",
+    "migrations",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
