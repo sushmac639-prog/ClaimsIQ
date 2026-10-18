@@ -9,32 +9,63 @@ pr:
       - main
 
 variables:
-  pythonVersion: '3.11'
-  imageName: 'claimiq-api'
-  # Create this variable group in Azure DevOps and mark secrets appropriately.
+  - name: pythonVersion
+    value: '3.11'
+
+  - name: imageName
+    value: 'claimiq-api'
+
+  # Azure DevOps variable group
   - group: ClaimIQ-Production
 
+
 stages:
+
+  # ============================================================
+  # STAGE 1: TEST
+  # ============================================================
   - stage: Test
     displayName: Test
+
     jobs:
       - job: UnitTests
+        displayName: Unit Tests
+
         pool:
           vmImage: ubuntu-latest
+
         steps:
+
+          # Checkout source code
+          - checkout: self
+
+          # Set Python version
           - task: UsePythonVersion@0
+            displayName: Set up Python
             inputs:
               versionSpec: '$(pythonVersion)'
+              addToPath: true
 
+          # Install application dependencies and CI tools
           - script: |
               python -m pip install --upgrade pip
               pip install -r requirements.txt
+              pip install pytest isort
             displayName: Install dependencies
 
-          - script: python -m compileall -q app migrations scripts tests
+          # Check Python import sorting
+          - script: |
+              isort --check-only --diff app migrations scripts tests
+            displayName: Check Python import sorting
+
+          # Compile Python files to catch syntax errors
+          - script: |
+              python -m compileall -q app migrations scripts tests
             displayName: Compile Python
 
-          - script: pytest -q
+          # Run automated tests
+          - script: |
+              pytest -q
             displayName: Run tests
             env:
               DATABASE_URL: sqlite:///./azure-pipeline.db
@@ -42,41 +73,91 @@ stages:
               AI_PROVIDER: openai
               OPENAI_API_KEY: test-key
 
+
+  # ============================================================
+  # STAGE 2: BUILD AND DEPLOY
+  # ============================================================
   - stage: BuildAndDeploy
     displayName: Build and deploy to AKS
+
     dependsOn: Test
     condition: succeeded()
+
     jobs:
       - job: Deploy
+        displayName: Build, Push and Deploy
+
         pool:
           vmImage: ubuntu-latest
+
         steps:
+
+          # Checkout source code
           - checkout: self
 
+          # Build Docker image, push to ACR and deploy to AKS
           - task: AzureCLI@2
             displayName: Build, push and deploy
             inputs:
               azureSubscription: 'ClaimIQ-Azure-ServiceConnection'
               scriptType: bash
               scriptLocation: inlineScript
+
               inlineScript: |
-                set -e
-                az acr login --name "$(ACR_NAME)"
-                docker build -t "$(ACR_LOGIN_SERVER)/$(imageName):$(Build.BuildId)" .
-                docker push "$(ACR_LOGIN_SERVER)/$(imageName):$(Build.BuildId)"
+                set -euo pipefail
+
+                echo "Logging in to Azure Container Registry..."
+
+                az acr login \
+                  --name "$(ACR_NAME)"
+
+
+                echo "Building Docker image..."
+
+                docker build \
+                  -t "$(ACR_LOGIN_SERVER)/$(imageName):$(Build.BuildId)" \
+                  .
+
+
+                echo "Pushing Docker image to ACR..."
+
+                docker push \
+                  "$(ACR_LOGIN_SERVER)/$(imageName):$(Build.BuildId)"
+
+
+                echo "Getting AKS credentials..."
 
                 az aks get-credentials \
                   --resource-group "$(AKS_RESOURCE_GROUP)" \
                   --name "$(AKS_CLUSTER_NAME)" \
                   --overwrite-existing
 
+
+                echo "Creating/updating Kubernetes secrets..."
+
                 kubectl create secret generic claimiq-secrets \
                   --from-literal=DATABASE_URL="$(DATABASE_URL)" \
                   --from-literal=JWT_SECRET_KEY="$(JWT_SECRET_KEY)" \
                   --from-literal=AZURE_OPENAI_API_KEY="$(AZURE_OPENAI_API_KEY)" \
-                  --dry-run=client -o yaml | kubectl apply -f -
+                  --dry-run=client \
+                  -o yaml | kubectl apply -f -
+
+
+                echo "Applying Kubernetes manifests..."
 
                 kubectl apply -f k8s/
+
+
+                echo "Updating deployment image..."
+
                 kubectl set image deployment/claimiq-api \
                   claimiq-api="$(ACR_LOGIN_SERVER)/$(imageName):$(Build.BuildId)"
-                kubectl rollout status deployment/claimiq-api --timeout=180s
+
+
+                echo "Waiting for deployment rollout..."
+
+                kubectl rollout status deployment/claimiq-api \
+                  --timeout=180s
+
+
+                echo "Deployment completed successfully."

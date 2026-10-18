@@ -18,7 +18,6 @@ def upgrade():
     claim_status.create(bind, checkfirst=True)
     history_old.create(bind, checkfirst=True)
     history_new.create(bind, checkfirst=True)
-    user_role.create(op.get_bind(), checkfirst=True); policy_status.create(op.get_bind(), checkfirst=True); claim_status.create(op.get_bind(), checkfirst=True); history_old.create(op.get_bind(), checkfirst=True); history_new.create(op.get_bind(), checkfirst=True)
     op.create_table("users", sa.Column("id",sa.Integer(),primary_key=True), sa.Column("full_name",sa.String(150),nullable=False), sa.Column("email",sa.String(255),nullable=False), sa.Column("password_hash",sa.String(255),nullable=False), sa.Column("role",user_role,nullable=False), sa.Column("region",sa.String(100)), sa.Column("is_active",sa.Boolean(),nullable=False,server_default=sa.true()), sa.Column("created_at",sa.DateTime(timezone=True),server_default=sa.func.now(),nullable=False), sa.Column("updated_at",sa.DateTime(timezone=True),server_default=sa.func.now(),nullable=False), sa.UniqueConstraint("email"))
     op.create_index("ix_users_email","users",["email"],unique=False)
     op.create_table("policies", sa.Column("id",sa.Integer(),primary_key=True), sa.Column("policy_number",sa.String(80),nullable=False), sa.Column("policy_type",sa.String(80),nullable=False), sa.Column("coverage_description",sa.Text()), sa.Column("region",sa.String(100),nullable=False), sa.Column("effective_date",sa.Date(),nullable=False), sa.Column("expiry_date",sa.Date(),nullable=False), sa.Column("status",policy_status,nullable=False), sa.Column("created_at",sa.DateTime(timezone=True),server_default=sa.func.now(),nullable=False), sa.Column("updated_at",sa.DateTime(timezone=True),server_default=sa.func.now(),nullable=False), sa.UniqueConstraint("policy_number"))
@@ -34,3 +33,5 @@ def downgrade():
     op.drop_index("ix_audit_logs_action", table_name="audit_logs"); op.drop_table("audit_logs"); op.drop_table("claim_status_history"); op.drop_table("claim_notes"); op.drop_index("ix_claims_status_region", table_name="claims"); op.drop_index("ix_claims_region", table_name="claims"); op.drop_index("ix_claims_claim_type", table_name="claims"); op.drop_index("ix_claims_assigned_user_id", table_name="claims"); op.drop_index("ix_claims_claim_number", table_name="claims"); op.drop_table("claims"); op.drop_index("ix_policies_region", table_name="policies"); op.drop_index("ix_policies_policy_number", table_name="policies"); op.drop_table("policies"); op.drop_index("ix_users_email", table_name="users"); op.drop_table("users")
     for name in ("history_new_status","history_old_status","claim_status","policy_status","user_role"):
         sa.Enum(name=name).drop(op.get_bind(), checkfirst=True)
+
+
