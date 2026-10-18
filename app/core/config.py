@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     rag_chunk_size: int = 1200
     rag_chunk_overlap: int = 200
     rag_embed_batch_size: int = 32
+    redis_url: str = "redis://localhost:6379/0"
     chroma_persist_directory: Path = Path("./data/chroma")
     chroma_collection: str = "claimiq_policy_chunks"
     document_storage_directory: Path = Path("./data/documents")
