@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.cache import is_token_revoked, mark_token_revoked
 from app.core.security import create_access_token, create_refresh_token, decode_token, verify_password
 from app.db.models import AuditLog, RevokedToken, User
 from app.db.session import get_db
@@ -19,7 +20,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 def _is_revoked(db: Session, jti: str | None) -> bool:
     if not jti:
         return False
-    return db.scalar(select(RevokedToken.id).where(RevokedToken.jti == jti)) is not None
+    return db.scalar(select(RevokedToken.id).where(RevokedToken.jti == jti)) is not None or is_token_revoked(jti)
 
 
 def _revoke_token(db: Session, payload: dict, user_id: int) -> None:
@@ -34,6 +35,7 @@ def _revoke_token(db: Session, payload: dict, user_id: int) -> None:
     if expires_at <= datetime.now(timezone.utc):
         return
     db.add(RevokedToken(jti=jti, token_type=token_type, user_id=user_id, expires_at=expires_at))
+    mark_token_revoked(jti, expires_at)
 
 
 @router.post("/login", response_model=TokenPair)

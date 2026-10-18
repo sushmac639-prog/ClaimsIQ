@@ -6,6 +6,7 @@ from time import perf_counter
 from langchain_core.messages import HumanMessage, SystemMessage
 from sqlalchemy.orm import Session
 
+from app.core.cache import build_ai_cache_key, get_cached_json, set_cached_json
 from app.core.config import settings
 from app.core.redaction import redact_sensitive_text
 from app.db.models import AuditLog, ChatQueryLog, User
@@ -81,6 +82,11 @@ def _save_query_log(db: Session, user: User, question: str, answer: str, sources
 def answer_question(db: Session, user: User, question: str, top_k: int | None, policy_id: int | None = None) -> AIQueryResponse:
     started = perf_counter()
     safe_question = question.strip()
+    cache_key = build_ai_cache_key(safe_question, user_id=user.id, policy_id=policy_id, top_k=top_k)
+    cached_response = get_cached_json(cache_key)
+    if cached_response is not None:
+        return AIQueryResponse.model_validate(cached_response)
+
     chunks = retrieve_chunks(db, user, safe_question, top_k, policy_id)
     context, retrieved_sources = build_context(chunks)
 
@@ -127,5 +133,7 @@ def answer_question(db: Session, user: User, question: str, top_k: int | None, p
     log = _save_query_log(db, user, safe_question, answer, sources, started, no_match=no_match,
                           prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
                           action="AI_QUERY_NO_MATCH" if no_match else "AI_QUERY")
-    return AIQueryResponse(answer=answer, model=configured_chat_model(), sources=sources,
-                           no_match=no_match, query_log_id=log.id)
+    response = AIQueryResponse(answer=answer, model=configured_chat_model(), sources=sources,
+                               no_match=no_match, query_log_id=log.id)
+    set_cached_json(cache_key, response.model_dump(mode="json"), ttl_seconds=900)
+    return response

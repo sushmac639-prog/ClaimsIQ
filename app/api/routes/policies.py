@@ -3,6 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
+from app.core.cache import build_policy_cache_key, build_policy_list_cache_key, delete_cache_prefix, get_cached_json, set_cached_json
 from app.db.models import AuditLog, Policy, PolicyStatus, User, UserRole
 from app.db.session import get_db
 from app.schemas.policy import PolicyCreate, PolicyRead, PolicyUpdate
@@ -28,6 +29,8 @@ def create_policy(body: PolicyCreate, db: Session = Depends(get_db), actor: User
     db.add(AuditLog(user_id=actor.id, action="POLICY_CREATED", entity_type="Policy", entity_id=str(policy.id)))
     db.commit()
     db.refresh(policy)
+    delete_cache_prefix("policy:")
+    delete_cache_prefix("policies:list:")
     return policy
 
 
@@ -36,14 +39,38 @@ def list_policies(region: str | None = Query(default=None, max_length=100), skip
     stmt = visible_policies_stmt(actor).order_by(Policy.id)
     if region:
         stmt = stmt.where(func.lower(Policy.region) == region.strip().casefold())
-    return list(db.scalars(stmt.offset(skip).limit(limit)).all())
+    cache_key = build_policy_list_cache_key(
+        actor_id=actor.id,
+        role=actor.role.value,
+        actor_region=actor.region,
+        region=region,
+        skip=skip,
+        limit=limit,
+    )
+    cached = get_cached_json(cache_key)
+    if cached is not None:
+        return [PolicyRead.model_validate(item) for item in cached]
+    policies = list(db.scalars(stmt.offset(skip).limit(limit)).all())
+    payload = [PolicyRead.model_validate(policy).model_dump(mode="json") for policy in policies]
+    set_cached_json(cache_key, payload, ttl_seconds=300)
+    return policies
 
 
 @router.get("/{policy_id}", response_model=PolicyRead)
 def get_policy(policy_id: int, db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
+    cache_key = build_policy_cache_key(
+        policy_id,
+        actor_id=actor.id,
+        role=actor.role.value,
+        actor_region=actor.region,
+    )
+    cached = get_cached_json(cache_key)
+    if cached is not None:
+        return PolicyRead.model_validate(cached)
     policy = db.scalar(visible_policies_stmt(actor).where(Policy.id == policy_id))
     if policy is None:
         raise HTTPException(status_code=404, detail="Policy not found")
+    set_cached_json(cache_key, policy.model_dump(mode="json"), ttl_seconds=300)
     return policy
 
 
@@ -62,6 +89,8 @@ def update_policy(policy_id: int, body: PolicyUpdate, db: Session = Depends(get_
     db.add(AuditLog(user_id=actor.id, action="POLICY_UPDATED", entity_type="Policy", entity_id=str(policy.id)))
     db.commit()
     db.refresh(policy)
+    delete_cache_prefix("policy:")
+    delete_cache_prefix("policies:list:")
     return policy
 
 
@@ -73,4 +102,6 @@ def deactivate_policy(policy_id: int, db: Session = Depends(get_db), actor: User
     policy.status = PolicyStatus.INACTIVE
     db.add(AuditLog(user_id=actor.id, action="POLICY_DEACTIVATED", entity_type="Policy", entity_id=str(policy.id)))
     db.commit()
+    delete_cache_prefix("policy:")
+    delete_cache_prefix("policies:list:")
     return None
